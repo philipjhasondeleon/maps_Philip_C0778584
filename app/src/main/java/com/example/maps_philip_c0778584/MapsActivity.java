@@ -8,6 +8,8 @@ import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.location.Address;
+import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -25,8 +27,10 @@ import com.google.android.gms.maps.model.Polygon;
 import com.google.android.gms.maps.model.PolygonOptions;
 import com.google.android.gms.maps.model.Polyline;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
@@ -109,12 +113,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
 
             private void setMarker(LatLng latLng) {
+                Location l = new Location("");
+                l.setLatitude(latLng.latitude);
+                l.setLongitude(latLng.longitude);
                 MarkerOptions options = new MarkerOptions().position(latLng)
-                        .title("Your destination");
+                        .title(getAddress(l));
 
-                /*if (destMarker != null) clearMap();
-                destMarker = mMap.addMarker(options);
-                drawLine();*/
 
                 // check if there are already the same number of markers, we clear the map.
                 if (markers.size() == POLYGON_SIDES)
@@ -155,6 +159,33 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 shape = null;
             }
         });
+    }
+
+    private String getAddress(Location location){
+
+        String address = "";
+
+        Geocoder geocoder = new Geocoder(this, Locale.getDefault());
+        try {
+            List<Address> locationAddress = geocoder.getFromLocation(location.getLatitude(),location.getLongitude(),1);
+            if(locationAddress != null && locationAddress.size() > 0){
+
+                if(locationAddress.get(0).getSubThoroughfare() != null)
+                    address += locationAddress.get(0).getSubThoroughfare() + " ";
+                if(locationAddress.get(0).getThoroughfare() != null)
+                    address += locationAddress.get(0).getThoroughfare() + " ";
+                if(locationAddress.get(0).getLocality() != null)
+                    address += locationAddress.get(0).getLocality();
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }catch (IllegalArgumentException e){
+            e.printStackTrace();
+        }
+
+        return address;
+
     }
 
 
