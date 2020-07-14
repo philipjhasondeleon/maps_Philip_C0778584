@@ -14,6 +14,7 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.widget.Toast;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -26,13 +27,14 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polygon;
 import com.google.android.gms.maps.model.PolygonOptions;
 import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
+public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, GoogleMap.OnPolygonClickListener, GoogleMap.OnMarkerDragListener, GoogleMap.OnPolylineClickListener {
 
     private GoogleMap mMap;
 
@@ -44,6 +46,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     Polygon shape;
     private static final int POLYGON_SIDES = 4;
     List<Marker> markers = new ArrayList();
+    int count = 1;
+    Marker dragMarker;
 
     // location with location manager and listener
     LocationManager locationManager;
@@ -102,6 +106,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         else
             startUpdateLocation();
 
+        mMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
+            @Override
+            public void onMapLongClick(LatLng latLng) {
+                for (int i=0; i<POLYGON_SIDES; i++) {
+                    markers.get(i).remove();
+                }
+                shape.remove();
+            }
+        });
+
 
         mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
             @Override
@@ -112,28 +126,56 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             }
 
+
+
             private void setMarker(LatLng latLng) {
+
                 Location l = new Location("");
                 l.setLatitude(latLng.latitude);
                 l.setLongitude(latLng.longitude);
                 MarkerOptions options = new MarkerOptions().position(latLng)
-                        .title(getAddress(l));
+                        .title(getAddress(l)).snippet(getCity(l)).draggable(true);
+
+//                if (destMarker != null) clearMap();
 
 
-                // check if there are already the same number of markers, we clear the map.
+
+//                destMarker = mMap.addMarker(options);
+//
+//                drawLine();
+
+//                 check if there are already the same number of markers, we clear the map.
                 if (markers.size() == POLYGON_SIDES)
                     clearMap();
 
                 markers.add(mMap.addMarker(options));
+
                 if (markers.size() == POLYGON_SIDES)
                     drawShape();
+
+                if(count == 1){
+                    homeMarker = mMap.addMarker(options);
+                }if(count == 2){
+                    destMarker = mMap.addMarker(options);
+                    drawLine();
+                }if(count == 3 || count == 4){
+                    homeMarker = destMarker;
+                    destMarker = mMap.addMarker(options);
+                    drawLine();
+                }
+
+                count += 1;
+
+
             }
 
             private void drawShape() {
+
+
                 PolygonOptions options = new PolygonOptions()
                         .fillColor(0x337CFC00)
                         .strokeColor(Color.RED)
-                        .strokeWidth(5);
+                        .strokeWidth(5).clickable(true);
 
                 for (int i=0; i<POLYGON_SIDES; i++) {
                     options.add(markers.get(i).getPosition());
@@ -141,15 +183,20 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
                 shape = mMap.addPolygon(options);
 
+
+
+
             }
+
 
             private void clearMap() {
 
-                /*if (destMarker != null) {
-                    destMarker.remove();
-                    destMarker = null;
-                }
-                line.remove();*/
+//                if (destMarker != null) {
+//                    destMarker.remove();
+//                    destMarker = null;
+//                }
+//
+//                line.remove();
 
                 for (Marker marker: markers)
                     marker.remove();
@@ -158,8 +205,24 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 shape.remove();
                 shape = null;
             }
+
+            private void drawLine() {
+
+
+
+                PolylineOptions options = new PolylineOptions()
+                        .color(Color.RED)
+                        .width(20)
+                        .add(homeMarker.getPosition(), destMarker.getPosition()).clickable(true);
+                line = mMap.addPolyline(options);
+            }
         });
+
+        mMap.setOnPolylineClickListener(this);
+        mMap.setOnPolygonClickListener(this);
+        mMap.setOnMarkerDragListener(this);
     }
+
 
     private String getAddress(Location location){
 
@@ -174,8 +237,36 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     address += locationAddress.get(0).getSubThoroughfare() + " ";
                 if(locationAddress.get(0).getThoroughfare() != null)
                     address += locationAddress.get(0).getThoroughfare() + " ";
-                if(locationAddress.get(0).getLocality() != null)
+                if(locationAddress.get(0).getPostalCode() != null)
                     address += locationAddress.get(0).getLocality();
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }catch (IllegalArgumentException e){
+            e.printStackTrace();
+        }
+
+        return address;
+
+    }
+
+
+
+    private String getCity(Location location){
+
+        String address = "";
+
+        Geocoder geocoder = new Geocoder(this, Locale.getDefault());
+        try {
+            List<Address> locationAddress = geocoder.getFromLocation(location.getLatitude(),location.getLongitude(),1);
+            if(locationAddress != null && locationAddress.size() > 0){
+
+                if(locationAddress.get(0).getAdminArea() != null)
+                    address += locationAddress.get(0).getAddressLine(0) + " ";
+                if(locationAddress.get(0).getThoroughfare() != null)
+                    address += locationAddress.get(0).getAddressLine(1) + " ";
+
             }
 
         } catch (IOException e) {
@@ -213,7 +304,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .title("You are here")
                 .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
                 .snippet("Your Location");
-        homeMarker = mMap.addMarker(options);
+        mMap.addMarker(options);
+//        homeMarker = mMap.addMarker(options);
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation, 15));
     }
 
@@ -224,5 +316,86 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5000, 0, locationListener);
             }
         }
+    }
+
+    @Override
+    public void onPolygonClick(Polygon polygon) {
+        List points = polygon.getPoints();
+
+        Location loc1 = new Location("");
+        LatLng l1 = (LatLng) points.get(0);
+
+        loc1.setLatitude(l1.latitude);
+        loc1.setLongitude(l1.longitude);
+
+        Location loc2 = new Location("");
+        LatLng l2 = (LatLng) points.get(1);
+
+        loc2.setLatitude(l2.latitude);
+        loc2.setLongitude(l2.longitude);
+
+        Location loc3 = new Location("");
+        LatLng l3 = (LatLng) points.get(2);
+        loc2.setLatitude(l3.latitude);
+        loc2.setLongitude(l3.longitude);
+
+        Location loc4 = new Location("");
+        LatLng l4 = (LatLng) points.get(3);
+        loc2.setLatitude(l4.latitude);
+        loc2.setLongitude(l4.longitude);
+
+
+
+        float distance = loc1.distanceTo(loc2) + loc2.distanceTo(loc3) + loc3.distanceTo(loc4) + loc4.distanceTo(loc1);
+
+        System.out.println("..............polygon." + distance);
+
+        Toast.makeText(this, "Total Distance= " + distance, Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void onMarkerDragStart(Marker marker) {
+
+    }
+
+    @Override
+    public void onMarkerDrag(Marker marker) {
+
+        dragMarker = marker;
+
+    }
+
+    @Override
+    public void onMarkerDragEnd(Marker marker) {
+
+        //        markers.add(count,marker);
+
+    }
+
+    @Override
+    public void onPolylineClick(Polyline polyline) {
+
+        List points = polyline.getPoints();
+
+        Location loc1 = new Location("");
+        LatLng l1 = (LatLng) points.get(0);
+
+        loc1.setLatitude(l1.latitude);
+        loc1.setLongitude(l1.longitude);
+
+        Location loc2 = new Location("");
+        LatLng l2 = (LatLng) points.get(1);
+
+        loc2.setLatitude(l2.latitude);
+        loc2.setLongitude(l2.longitude);
+
+        float distance = loc1.distanceTo(loc2);
+        System.out.println("...............polyline" + distance);
+
+        System.out.println("gggggggggggggggg///////////////////////////////");
+
+
+        Toast.makeText(this, "Distance= " + distance, Toast.LENGTH_SHORT).show();
+
     }
 }
